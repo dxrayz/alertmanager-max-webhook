@@ -40,7 +40,7 @@ jobs:
         with:
           context: .
           push: false
-          load: true
+          # load: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -48,9 +48,9 @@ jobs:
           provenance: true
           sbom: true
 
-      - name: Generate artifact attestation
-        uses: actions/attest@v4
-        with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}
-          # subject-digest: ${{ steps.push.outputs.digest }}
-          push-to-registry: false
+      # - name: Generate artifact attestation
+      #   uses: actions/attest@v4
+      #   with:
+      #     subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}
+      #     # subject-digest: ${{ steps.push.outputs.digest }}
+      #     push-to-registry: false
