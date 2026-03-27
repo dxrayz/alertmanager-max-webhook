@@ -1,4 +1,4 @@
-name: Build Docker image
+name: Test build
 
 on:
   pull_request:
@@ -51,6 +51,16 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: true
           sbom: true
+
+      - name: Run Gosec
+        uses: securego/gosec@v2
+        with:
+          args: '-fmt sarif -out go_results.sarif ./...'
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: go_results.sarif
 
       # - name: Generate artifact attestation
       #   uses: actions/attest@v4
