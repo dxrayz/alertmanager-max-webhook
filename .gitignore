@@ -7,6 +7,10 @@
 *.dll
 *.so
 *.dylib
+alertmanager-max-bot
+
+# Go templates
+*.tmpl
 
 # Test binary, built with `go test -c`
 *.test
@@ -29,4 +33,4 @@ go.work.sum
 
 # Editor/IDE
 # .idea/
-# .vscode/
+.vscode/
