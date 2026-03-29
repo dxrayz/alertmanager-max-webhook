@@ -5,16 +5,16 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"html/template"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
-	"syscall"
-	"strconv"
-	"time"
 	"path"
+	"strconv"
+	"strings"
+	"syscall"
+	"time"
 
 	maxbot "github.com/max-messenger/max-bot-api-client-go"
 	"github.com/max-messenger/max-bot-api-client-go/schemes"
@@ -27,6 +27,7 @@ var (
 	api_client_timeout = flag.String("api-client-timeout", "5", "MAX API client timeout in seconds")
 	templates = template.New(path.Base(*templates_path))
 	max_bot_token = os.Getenv("MAX_BOT_TOKEN")
+	logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
 )
 
 const max_message_length int = 4000
@@ -60,15 +61,21 @@ func Log(handler http.Handler) http.Handler {
 			handler.ServeHTTP(w, r)
 			return
 		}
-        log.Printf("%s %s %s", r.RemoteAddr, r.Method, r.URL)
+		logger.Info("access log",
+			"remote", r.RemoteAddr,
+			"method", r.Method,
+			"path", r.URL)
 	handler.ServeHTTP(w, r)
     })
 }
 
 func parse_templates() (string) {
 	tmpl, err := template.New(path.Base(*templates_path)).ParseGlob(*templates_path)
-	if err != nil {
-		log.Println(err.Error())
+	if err != nil && strings.Contains(err.Error(), "pattern matches no files") {
+		logger.Warn(err.Error())
+		return err.Error()
+	} else if err != nil {
+		logger.Error(err.Error())
 		return err.Error()
 	}
 	templates = tmpl
@@ -77,10 +84,10 @@ func parse_templates() (string) {
 
 func main() {
     flag.Parse()
+
 	api_client_timeout, err := strconv.ParseInt(*api_client_timeout, 10, 8)
 	if err != nil {
-		log_message := "api-client-timeout must be in int type"
-		log.Fatalln(log_message)
+		logger.Error("api-client-timeout must be in int type")
 		return
 	}
     max_api_opts := []maxbot.Option{
@@ -93,7 +100,7 @@ func main() {
 
 	default_tmpl, err := template.New("default").Parse(default_template)
 	if err != nil {
-		log.Println(err.Error())
+		logger.Error(err.Error())
 	}
 
     sigs := make(chan os.Signal, 1)
@@ -102,15 +109,15 @@ func main() {
 		for sig := range sigs {
 			switch sig {
 			case syscall.SIGHUP:
-				log.Println("Received SIGHUP, reloading configuration...")
+				logger.Info("Received SIGHUP, reloading configuration...")
 				err := parse_templates();
 				if err != "" {
-					log.Printf("Error reloading config: %v", err)
+					logger.Error("Error reloading config:", "msg", err)
 				} else {
-					log.Println("Configuration reloaded successfully.")
+					logger.Info("Configuration reloaded successfully.")
 				}
 			case syscall.SIGINT, syscall.SIGTERM:
-				log.Printf("Received termination signal %s. Shutting down gracefully...\n", sig)
+				logger.Info("Received termination signal. Shutting down gracefully...\n", "msg", sig)
 				os.Exit(0)
 			}
 		}
@@ -123,7 +130,7 @@ func main() {
 		err := json.NewDecoder(r.Body).Decode(&data)
 		if err != nil {
 			log_message := err.Error()
-			log.Println(log_message)
+			logger.Error(log_message)
 			http.Error(w, log_message, http.StatusBadRequest)
 			return
 		}
@@ -137,14 +144,14 @@ func main() {
 		chat_id, err := strconv.ParseInt(chat_id_r, 10, 64)
 		if err != nil {
 			log_message := "Request error: {chat_id} must be in int64 type"
-			log.Println(log_message)
+			logger.Error(log_message)
 			http.Error(w, log_message, http.StatusInternalServerError)
 			return
 		} else {
 			api, err := maxbot.New(max_bot_token, max_api_opts...)
 			if err != nil {
 				log_message := err.Error()
-				log.Println(log_message)
+				logger.Error(log_message)
 				http.Error(w, log_message, http.StatusInternalServerError)
 				return
 			}
@@ -157,7 +164,7 @@ func main() {
 			}
 			if err != nil {
 				log_message := err.Error()
-				log.Println(log_message)
+				logger.Error(log_message)
 				http.Error(w, log_message, http.StatusInternalServerError)
 				return
 			}
@@ -175,16 +182,16 @@ func main() {
 			}
 			if err != nil {
 				log_message := err.Error()
-				log.Println(log_message)
+				logger.Error(log_message)
 				http.Error(w, log_message, http.StatusInternalServerError)
 				return
 			}
 		}
     })
 
-    fmt.Println("Starting server at port", *listen_address)
-    err = http.ListenAndServe(*listen_address, Log(http.DefaultServeMux))
+    logger.Info("Starting server at port", "address", *listen_address)
+	err = http.ListenAndServe(*listen_address, Log(http.DefaultServeMux))
     if err != nil {
-        fmt.Println("Error starting the server:", err)
+        logger.Info("Error starting the server:", "msg", err)
     }
 }
