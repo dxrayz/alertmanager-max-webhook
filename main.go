@@ -189,8 +189,15 @@ func main() {
 		}
     })
 
+	srv := &http.Server{
+		Addr:         *listen_address,
+		Handler:      Log(http.DefaultServeMux),
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
     logger.Info("Starting server at port", "address", *listen_address)
-	err = http.ListenAndServe(*listen_address, Log(http.DefaultServeMux))
+	err = srv.ListenAndServe()
     if err != nil {
         logger.Info("Error starting the server:", "msg", err)
     }
